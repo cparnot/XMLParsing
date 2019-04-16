@@ -613,21 +613,18 @@ fileprivate struct _XMLKeyedEncodingContainer<K : CodingKey> : KeyedEncodingCont
         self.encoder.codingPath.append(key)
         defer { self.encoder.codingPath.removeLast() }
         
-        if T.self == Date.self || T.self == NSDate.self {
-            switch self.encoder.options.attributeEncodingStrategy {
-            case .custom(let closure) where closure(self.encoder):
-                if let attributesContainer = self.container[_XMLElement.attributesKey] as? NSMutableDictionary {
-                    attributesContainer[_converted(key).stringValue] = try self.encoder.box(value)
-                } else {
-                    let attributesContainer = NSMutableDictionary()
-                    attributesContainer[_converted(key).stringValue] = try self.encoder.box(value)
-                    self.container[_XMLElement.attributesKey] = attributesContainer
-                }
-            default:
-                self.container[_converted(key).stringValue] = try self.encoder.box(value)
+        // Apply the attribute encoding strategy for anything that gets boxed as a string or a number. This allows for instance dates, int enums and string enums to be encoded in the attributes.
+        let boxedValue = try self.encoder.box(value)
+        if boxedValue is NSString || boxedValue is NSNumber, case let .custom(closure) = self.encoder.options.attributeEncodingStrategy, closure(self.encoder) {
+            if let attributesContainer = self.container[_XMLElement.attributesKey] as? NSMutableDictionary {
+                attributesContainer[_converted(key).stringValue] = boxedValue
+            } else {
+                let attributesContainer = NSMutableDictionary()
+                attributesContainer[_converted(key).stringValue] = boxedValue
+                self.container[_XMLElement.attributesKey] = attributesContainer
             }
         } else {
-            self.container[_converted(key).stringValue] = try self.encoder.box(value)
+            self.container[_converted(key).stringValue] = boxedValue
         }
     }
     
